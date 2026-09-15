@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#14120F">
+<meta name="theme-color" content="#1C2233">
 <meta name="color-scheme" content="dark">
 <!-- 検索エンジンへの掲載とリンク追跡を拒否する -->
 <meta name="robots" content="noindex, nofollow">
@@ -15,16 +15,16 @@
      ・大きな面を明るい色で塗らない（ボタン・通知も暗色ベース） */
   :root {
     color-scheme: dark;       /* スクロールバー等のネイティブ部品も暗色に */
-    --bg: #1A1814;            /* 背景 */
-    --surface: #24211C;       /* 操作バー・通知の面 */
-    --line: #38332B;          /* 区切り線 */
-    --text: #D2CAB8;          /* 本文 */
-    --muted: #968E7E;         /* 補助テキスト */
-    --placeholder: #666052;   /* 入力例 */
-    --narr: #B5AC98;          /* 地の文の識別色 */
-    --dial: #D1A865;          /* セリフの識別色 */
-    --narr-tint: rgba(163, 154, 134, .14); /* 地の文 選択時の淡い面 */
-    --dial-tint: rgba(196, 154, 85, .14);  /* セリフ 選択時の淡い面 */
+    --bg: #1C2233;            /* 背景：藍墨 */
+    --surface: #252C41;       /* 操作バー・通知の面 */
+    --line: #343C55;          /* 区切り線 */
+    --text: #DCD7CA;          /* 本文：生成り（初版より少しだけ輝度を下げた） */
+    --muted: #8E93A6;         /* 補助テキスト */
+    --placeholder: #5D6378;   /* 入力例 */
+    --narr: #8FB0D3;          /* 地の文の識別色 */
+    --dial: #E3B75E;          /* セリフの識別色 */
+    --narr-tint: rgba(143, 176, 211, .14); /* 地の文 選択時の淡い面 */
+    --dial-tint: rgba(227, 183, 94, .14);  /* セリフ 選択時の淡い面 */
     /* 暗色背景では明朝体の細い横画がにじみやすいため、ゴシック体を採用 */
     --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", system-ui, sans-serif;
   }
@@ -110,7 +110,7 @@
   #btn-clear { background: none; border: 1px solid var(--line); color: var(--muted); padding: 0 14px; }
   #btn-add { background: none; border: 1px solid var(--muted); color: var(--text); }
   /* 主操作は暗い琥珀の面で区別（明るい塗りは避ける） */
-  #btn-copy { background: #3A2F1E; border: 1px solid #6E5630; color: #E0C48E; font-weight: 500; }
+  #btn-copy { background: rgba(227, 183, 94, .16); border: 1px solid #8A6E3A; color: #E3B75E; font-weight: 500; }
 
   /* 操作結果通知：暗色の面＋枠線 */
   #toast {
