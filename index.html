@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1C2233">
+<!-- 検索エンジンへの掲載とリンク追跡を拒否する -->
+<meta name="robots" content="noindex, nofollow">
+<title>シーン下書き</title>
+<style>
+  /* ===== デザイントークン：就寝前の操作を想定した暗色系 ===== */
+  :root {
+    --bg: #1C2233;       /* 背景：藍墨 */
+    --surface: #252C41;  /* 操作バー等の面 */
+    --line: #343C55;     /* 区切り線 */
+    --text: #E6E1D3;     /* 本文：生成り */
+    --muted: #8E93A6;    /* 補助テキスト */
+    --narr: #8FB0D3;     /* 地の文の識別色 */
+    --dial: #E3B75E;     /* セリフの識別色 */
+    --mincho: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", serif;
+    --sans: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  /* 下部固定バーとiPhoneのホームバー分の余白を確保 */
+  body { padding: 16px 14px calc(100px + env(safe-area-inset-bottom)); }
+  main { max-width: 680px; margin: 0 auto; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  h1 { font-family: var(--mincho); font-weight: 600; font-size: 1.2rem; margin: 0; letter-spacing: .08em; }
+  #stat { color: var(--muted); font-size: .8rem; }
+
+  /* 前置き（任意の指示文）は折りたたみ */
+  details { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  summary { color: var(--muted); font-size: .9rem; cursor: pointer; }
+
+  /* 入力欄共通：iOSの自動ズーム回避のため16px以上 */
+  textarea {
+    width: 100%; background: transparent; color: var(--text); border: 0; outline: none;
+    resize: none; overflow: hidden; min-height: 2.8em; padding: 4px 2px;
+    font: 1.05rem/1.9 var(--mincho);
+  }
+  textarea::placeholder { color: #5D6378; }
+
+  /* ===== 行リスト ===== */
+  ol { list-style: none; margin: 0; padding: 0; }
+  .row { border-bottom: 1px solid var(--line); padding: 10px 0 8px; }
+  .row-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+
+  /* 種類切替：ラジオは視覚的に隠すがフォーカス可能なまま残す */
+  .toggle { display: flex; gap: 6px; border: 0; margin: 0; padding: 0; }
+  .toggle legend, .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .toggle span {
+    display: inline-block; min-width: 4.2em; text-align: center; padding: 6px 10px;
+    border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: .85rem;
+  }
+  .toggle input[value="narration"]:checked + span { border-color: var(--narr); color: var(--bg); background: var(--narr); }
+  .toggle input[value="dialogue"]:checked + span { border-color: var(--dial); color: var(--bg); background: var(--dial); }
+  .toggle input:focus-visible + span, button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+  .del { background: none; border: 0; color: var(--muted); font-size: 1.3rem; width: 40px; height: 36px; cursor: pointer; }
+
+  /* 地の文：原稿の慣例に合わせ字下げ */
+  .row[data-type="narration"] textarea { text-indent: 1em; }
+  /* セリフ：鉤括弧で囲み、一目で区別できるようにする */
+  .body { position: relative; }
+  .row[data-type="dialogue"] .body { padding: 0 1.2em; }
+  .row[data-type="dialogue"] .body::before,
+  .row[data-type="dialogue"] .body::after {
+    position: absolute; color: var(--dial); font: 1.05rem/1.9 var(--mincho); pointer-events: none;
+  }
+  .row[data-type="dialogue"] .body::before { content: "「"; left: 0; top: 4px; }
+  .row[data-type="dialogue"] .body::after { content: "」"; right: 0; bottom: 4px; }
+
+  /* ===== 下部固定操作バー（片手・寝姿勢で親指が届く位置） ===== */
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  .bar-inner { max-width: 680px; margin: 0 auto; display: grid; grid-template-columns: auto 1fr 1.4fr; gap: 8px; }
+  .bar button { height: 50px; border-radius: 12px; font-size: 1rem; cursor: pointer; font-family: var(--sans); }
+  #btn-clear { background: none; border: 1px solid var(--line); color: var(--muted); padding: 0 14px; }
+  #btn-add { background: none; border: 1px solid var(--muted); color: var(--text); }
+  #btn-copy { background: var(--dial); border: 0; color: var(--bg); font-weight: 700; }
+
+  /* 操作結果通知 */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: .9rem;
+    opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>シーン下書き</h1>
+    <span id="stat" aria-live="polite"></span>
+  </header>
+
+  <details id="prefix-box">
+    <summary>前置き（コピー時に先頭へ付ける指示文）</summary>
+    <label for="prefix" class="sr">前置き</label>
+    <textarea id="prefix" placeholder="例：以下の流れで、このシーンを小説として書いてください。"></textarea>
+  </details>
+
+  <ol id="rows"></ol>
+</main>
+
+<div class="bar">
+  <div class="bar-inner">
+    <button id="btn-clear" type="button">消去</button>
+    <button id="btn-add" type="button">＋ 行を追加</button>
+    <button id="btn-copy" type="button">コピー</button>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+/* ================= 設定 ================= */
+const STORAGE_KEY = 'scene-draft-tool-v1'; // 自動保存に使うキー（ツールごとに一意にする）
+const INITIAL_ROWS = 5;                    // 初回表示時・消去後の行数
+const SAVE_DELAY_MS = 400;                 // 入力停止から保存までの待機時間
+const TYPE_LABELS = {                      // 種類ごとの出力ラベル
+  narration: '地の文',
+  dialogue: 'セリフ',
+};
+
+/**
+ * 1行分の出力形式を定義する。
+ * 形式を変えたい場合はここだけ修正すればよい。
+ * @param {string} type - 'narration' | 'dialogue'
+ * @param {string} text - 入力された文章（前後空白除去済み）
+ * @returns {string}
+ */
+const formatLine = (type, text) => `【${TYPE_LABELS[type]}】${text}`;
+
+/* ================= 要素参照 ================= */
+const listEl = document.getElementById('rows');
+const prefixEl = document.getElementById('prefix');
+const prefixBoxEl = document.getElementById('prefix-box');
+const statEl = document.getElementById('stat');
+const toastEl = document.getElementById('toast');
+
+/* ================= 状態 ================= */
+let rowSeq = 0;              // ラジオボタンのname属性を行ごとに一意にするための連番
+let saveTimer = null;        // 保存デバウンス用タイマー
+let storageAvailable = true; // ストレージが使えない環境（プレビュー等）かどうか
+
+/* ================= ユーティリティ ================= */
+
+/**
+ * テキストエリアの高さを内容に合わせて伸縮させる。
+ * @param {HTMLTextAreaElement} areaEl
+ */
+function autoGrow(areaEl) {
+  areaEl.style.height = 'auto';                      // 一度縮めて正しいscrollHeightを得る
+  areaEl.style.height = `${areaEl.scrollHeight}px`;
+}
+
+/**
+ * 画面下部に短い通知を表示する。
+ * @param {string} message
+ */
+let toastTimer = null;
+function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+}
+
+/* ================= 行の生成 ================= */
+
+/**
+ * 1行分のDOMを生成する。
+ * @param {{type?: string, text?: string}} data - 復元時の初期値
+ * @returns {HTMLLIElement}
+ */
+function createRow(data = {}) {
+  const type = data.type === 'dialogue' ? 'dialogue' : 'narration'; // 不正値は地の文扱い
+  const groupName = `row-type-${rowSeq++}`;
+
+  const itemEl = document.createElement('li');
+  itemEl.className = 'row';
+  itemEl.dataset.type = type;
+
+  itemEl.innerHTML = `
+    <div class="row-head">
+      <fieldset class="toggle">
+        <legend>種類</legend>
+        <label><input type="radio" name="${groupName}" value="narration"><span>${TYPE_LABELS.narration}</span></label>
+        <label><input type="radio" name="${groupName}" value="dialogue"><span>${TYPE_LABELS.dialogue}</span></label>
+      </fieldset>
+      <button type="button" class="del" aria-label="この行を削除">×</button>
+    </div>
+    <div class="body">
+      <textarea rows="1" aria-label="文章" placeholder="文章を入力"></textarea>
+    </div>`;
+
+  // 初期値をDOMに反映（innerHTMLに直接埋め込まずXSS的な混入を避ける）
+  itemEl.querySelector(`input[value="${type}"]`).checked = true;
+  itemEl.querySelector('textarea').value = data.text || '';
+  return itemEl;
+}
+
+/**
+ * 行リストを指定データで描き直す。
+ * @param {Array<{type: string, text: string}>} rowsData
+ */
+function renderRows(rowsData) {
+  listEl.replaceChildren(...rowsData.map(createRow));
+  // 描画確定後に高さ調整（直後だとscrollHeightが0になる場合がある）
+  requestAnimationFrame(() => listEl.querySelectorAll('textarea').forEach(autoGrow));
+  updateStat();
+}
+
+/** 空行を指定数ぶん作る */
+const emptyRows = (count) => Array.from({ length: count }, () => ({ type: 'narration', text: '' }));
+
+/* ================= 状態の取得・保存・復元 ================= */
+
+/**
+ * 現在の入力内容をオブジェクトとして取得する。
+ * @returns {{prefix: string, rows: Array<{type: string, text: string}>}}
+ */
+function collectState() {
+  return {
+    prefix: prefixEl.value,
+    rows: [...listEl.children].map((itemEl) => ({
+      type: itemEl.dataset.type,
+      text: itemEl.querySelector('textarea').value,
+    })),
+  };
+}
+
+/** 即時保存。ストレージ非対応環境では何もしない */
+function saveNow() {
+  clearTimeout(saveTimer);
+  if (!storageAvailable) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(collectState()));
+  } catch (error) {
+    storageAvailable = false; // 容量超過・プライベートモード等
+    updateStat();
+  }
+}
+
+/** 入力のたびに書き込まないよう、一定時間後にまとめて保存 */
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, SAVE_DELAY_MS);
+}
+
+/**
+ * 保存済みデータを読み込む。無い・壊れている場合はnull。
+ * @returns {{prefix: string, rows: Array}|null}
+ */
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed.rows) ? parsed : null;
+  } catch (error) {
+    storageAvailable = false;
+    return null;
+  }
+}
+
+/* ================= 表示更新 ================= */
+
+/** 入力済み行数と文字数を表示 */
+function updateStat() {
+  const filled = collectState().rows.filter((row) => row.text.trim() !== '');
+  const chars = filled.reduce((sum, row) => sum + row.text.trim().length, 0);
+  statEl.textContent = `${filled.length}行 / ${chars}字${storageAvailable ? '' : '（自動保存不可）'}`;
+}
+
+/* ================= 出力 ================= */
+
+/**
+ * コピー用テキストを組み立てる。空行は除外。
+ * @returns {{text: string, count: number}}
+ */
+function buildOutput() {
+  const state = collectState();
+  const lines = state.rows
+    .filter((row) => row.text.trim() !== '')
+    .map((row) => formatLine(row.type, row.text.trim()));
+
+  const parts = [];
+  if (state.prefix.trim() !== '' && lines.length > 0) parts.push(state.prefix.trim(), ''); // 前置きと本文の間に空行
+  parts.push(...lines);
+  return { text: parts.join('\n'), count: lines.length };
+}
+
+/**
+ * クリップボードへ書き込む。
+ * Clipboard APIはHTTPS等の安全な環境でのみ動くため、失敗時は旧方式で再試行する。
+ * @param {string} text
+ * @returns {Promise<boolean>} 成否
+ */
+async function writeClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    const tempEl = document.createElement('textarea');
+    tempEl.value = text;
+    tempEl.setAttribute('readonly', '');
+    tempEl.style.position = 'fixed';
+    tempEl.style.opacity = '0';
+    document.body.appendChild(tempEl);
+    tempEl.select();
+    const succeeded = document.execCommand('copy');
+    tempEl.remove();
+    return succeeded;
+  }
+}
+
+/* ================= イベント ================= */
+
+// 行内の操作はリスト全体で一括処理（行の増減に追従するため）
+listEl.addEventListener('input', (event) => {
+  if (event.target.tagName !== 'TEXTAREA') return;
+  autoGrow(event.target);
+  updateStat();
+  scheduleSave();
+});
+
+listEl.addEventListener('change', (event) => {
+  if (event.target.type !== 'radio') return;
+  event.target.closest('.row').dataset.type = event.target.value; // 見た目（字下げ/鉤括弧）を切替
+  requestAnimationFrame(() => autoGrow(event.target.closest('.row').querySelector('textarea'))); // 余白変化で折返しが変わるため
+  scheduleSave();
+});
+
+listEl.addEventListener('click', (event) => {
+  const deleteBtn = event.target.closest('.del');
+  if (!deleteBtn) return;
+  const itemEl = deleteBtn.closest('.row');
+  const areaEl = itemEl.querySelector('textarea');
+
+  // 文章が入っている行は誤タップ対策で確認
+  if (areaEl.value.trim() !== '' && !confirm('この行を削除しますか？')) return;
+
+  if (listEl.children.length === 1) {
+    areaEl.value = ''; // 最後の1行は削除せず中身だけ空にする
+    autoGrow(areaEl);
+  } else {
+    itemEl.remove();
+  }
+  updateStat();
+  saveNow();
+});
+
+prefixEl.addEventListener('input', () => {
+  autoGrow(prefixEl);
+  scheduleSave();
+});
+// 折りたたみを開いた時点で高さを合わせる
+prefixBoxEl.addEventListener('toggle', () => autoGrow(prefixEl));
+
+document.getElementById('btn-add').addEventListener('click', () => {
+  const itemEl = createRow();
+  listEl.appendChild(itemEl);
+  const areaEl = itemEl.querySelector('textarea');
+  areaEl.focus();
+  itemEl.scrollIntoView({ block: 'center' });
+  saveNow();
+});
+
+document.getElementById('btn-copy').addEventListener('click', async () => {
+  const output = buildOutput();
+  if (output.count === 0) {
+    showToast('コピーする文章がありません');
+    return;
+  }
+  const succeeded = await writeClipboard(output.text);
+  showToast(succeeded ? `${output.count}行をコピーしました` : 'コピーできませんでした');
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (!confirm('すべての行を消去しますか？（前置きは残ります）')) return;
+  renderRows(emptyRows(INITIAL_ROWS));
+  saveNow();
+  window.scrollTo({ top: 0 });
+});
+
+// タブ切替・アプリ切替時（Grokへ移動する時など）に取りこぼしなく保存
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveNow();
+});
+
+/* ================= 初期化 ================= */
+(function init() {
+  const saved = loadState();
+  prefixEl.value = saved?.prefix || '';
+  renderRows(saved && saved.rows.length > 0 ? saved.rows : emptyRows(INITIAL_ROWS));
+})();
+</script>
+</body>
+</html>
