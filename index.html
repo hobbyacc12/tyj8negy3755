@@ -23,8 +23,10 @@
     --placeholder: #5D6378;   /* 入力例 */
     --narr: #8FB0D3;          /* 地の文の識別色 */
     --dial: #E3B75E;          /* セリフの識別色 */
+    --prem: #B3A6CF;          /* 前提の識別色（地の文・セリフと区別できる淡い紫） */
     --narr-tint: rgba(143, 176, 211, .14); /* 地の文 選択時の淡い面 */
     --dial-tint: rgba(227, 183, 94, .14);  /* セリフ 選択時の淡い面 */
+    --prem-tint: rgba(179, 166, 207, .14); /* 前提 選択時の淡い面 */
     /* 暗色背景では明朝体の細い横画がにじみやすいため、ゴシック体を採用 */
     --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", system-ui, sans-serif;
   }
@@ -72,6 +74,7 @@
   /* 選択中は塗りつぶさず、枠線＋淡い面で示す（眩しさ対策） */
   .toggle input[value="narration"]:checked + span { border-color: var(--narr); color: var(--narr); background: var(--narr-tint); }
   .toggle input[value="dialogue"]:checked + span { border-color: var(--dial); color: var(--dial); background: var(--dial-tint); }
+  .toggle input[value="premise"]:checked + span { border-color: var(--prem); color: var(--prem); background: var(--prem-tint); }
   .toggle input:focus-visible + span, button:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
 
   .del { background: none; border: 0; color: var(--muted); font-size: 1.3rem; width: 40px; height: 36px; cursor: pointer; }
@@ -91,6 +94,8 @@
 
   /* 地の文：原稿の慣例に合わせ字下げ */
   .row[data-type="narration"] textarea { text-indent: 1em; }
+  /* 前提：本文ではないため字下げせず、識別色で区別する */
+  .row[data-type="premise"] textarea { color: var(--prem); }
   /* セリフ：鉤括弧で囲み、一目で区別できるようにする */
   .row[data-type="dialogue"] .text { padding: 0 1.2em; }
   .row[data-type="dialogue"] .text::before,
@@ -156,21 +161,32 @@ const STORAGE_KEY = 'scene-draft-tool-v1'; // 自動保存に使うキー（既�
 const STATE_VERSION = 2;                   // 保存データの形式バージョン（2：名前欄・前置き既定値に対応）
 const INITIAL_ROWS = 5;                    // 初回表示時・消去後の行数
 const SAVE_DELAY_MS = 400;                 // 入力停止から保存までの待機時間
-const DEFAULT_PREFIX =                     // 前置きの既定値
-  '事前に渡しているpromptに従いながら、このシーンを小説として書いてください。';
-const TYPE_LABELS = {                      // 種類ごとの出力ラベル
+const DEFAULT_PREFIX =                     // 前置きの既定値（公開コードのため汎用的な文にする）
+  '以下の場面を小説として書いてください。';
+const TYPE_LABELS = {                      // 種類ごとの表示・出力ラベル（キーの並びがボタンの並び順）
+  premise: '前提',
   narration: '地の文',
   dialogue: 'セリフ',
 };
 
 /**
  * 1行分の出力形式を定義する。形式を変えたい場合はここだけ修正すればよい。
+ * 前提　：【前提】文章（複数行なら空行を除き、各行に【前提】を付ける）
  * 地の文：【地の文】文章
- * セリフ：【セリフ】名前「文章」（名前が空なら【セリフ】「文章」）
+ * セリフ：【セリフ】名前「文章」（名前は必須。空の場合はコピー前に止める）
  * @param {{type: string, name: string, text: string}} row - 前後空白除去済みの行データ
  * @returns {string}
  */
 function formatLine(row) {
+  if (row.type === 'premise') {
+    // 貼り付けた複数行の各行にラベルを付け、ラベルの無い行が混ざらないようにする
+    return row.text
+      .split('\n')
+      .map((lineText) => lineText.trim())
+      .filter((lineText) => lineText !== '')
+      .map((lineText) => `【${TYPE_LABELS.premise}】${lineText}`)
+      .join('\n');
+  }
   if (row.type !== 'dialogue') return `【${TYPE_LABELS.narration}】${row.text}`;
   // 利用者が自分で「」を打った場合に二重にならないよう、両端の鉤括弧を1つずつ除去
   const bareText = row.text.replace(/^「/, '').replace(/」$/, '');
@@ -220,8 +236,12 @@ function showToast(message) {
  * @returns {HTMLLIElement}
  */
 function createRow(data = {}) {
-  const type = data.type === 'dialogue' ? 'dialogue' : 'narration'; // 不正値は地の文扱い
+  const type = Object.prototype.hasOwnProperty.call(TYPE_LABELS, data.type) ? data.type : 'narration'; // 未定義の種類は地の文扱い
   const groupName = `row-type-${rowSeq++}`;
+  // 種類切替のボタンを TYPE_LABELS から生成（種類を増減してもここは修正不要）
+  const toggleHtml = Object.entries(TYPE_LABELS)
+    .map(([value, label]) => `<label><input type="radio" name="${groupName}" value="${value}"><span>${label}</span></label>`)
+    .join('');
 
   const itemEl = document.createElement('li');
   itemEl.className = 'row';
@@ -231,8 +251,7 @@ function createRow(data = {}) {
     <div class="row-head">
       <fieldset class="toggle">
         <legend>種類</legend>
-        <label><input type="radio" name="${groupName}" value="narration"><span>${TYPE_LABELS.narration}</span></label>
-        <label><input type="radio" name="${groupName}" value="dialogue"><span>${TYPE_LABELS.dialogue}</span></label>
+        ${toggleHtml}
       </fieldset>
       <button type="button" class="del" aria-label="この行を削除">×</button>
     </div>
@@ -342,13 +361,31 @@ function updateStat() {
 /* ================= 出力 ================= */
 
 /**
+ * 名前が未入力のセリフ行（文章は入力済み）のうち、最初の行の要素を返す。
+ * 文章が空の行は出力されないため対象外。
+ * @returns {HTMLLIElement|null}
+ */
+function findUnnamedDialogueRow() {
+  return [...listEl.children].find((itemEl) =>
+    itemEl.dataset.type === 'dialogue' &&
+    itemEl.querySelector('textarea').value.trim() !== '' &&
+    itemEl.querySelector('.speaker').value.trim() === ''
+  ) || null;
+}
+
+/**
  * コピー用テキストを組み立てる。文章が空の行は除外。
+ * 前提の行は、画面上の位置に関係なく先頭へまとめる（それ以外の行の順序は保つ）。
  * @returns {{text: string, count: number}}
  */
 function buildOutput() {
   const state = collectState();
-  const lines = state.rows
-    .filter((row) => row.text.trim() !== '')
+  const filledRows = state.rows.filter((row) => row.text.trim() !== '');
+  const orderedRows = [
+    ...filledRows.filter((row) => row.type === 'premise'),
+    ...filledRows.filter((row) => row.type !== 'premise'),
+  ];
+  const lines = orderedRows
     .map((row) => formatLine({ type: row.type, name: row.name.trim(), text: row.text.trim() }));
 
   const parts = [];
@@ -444,6 +481,14 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
   const output = buildOutput();
   if (output.count === 0) {
     showToast('コピーする文章がありません');
+    return;
+  }
+  // 話者名は必須。未入力の行があればコピーせず、その名前欄へ移動する
+  const unnamedRowEl = findUnnamedDialogueRow();
+  if (unnamedRowEl) {
+    unnamedRowEl.scrollIntoView({ block: 'center' });
+    unnamedRowEl.querySelector('.speaker').focus();
+    showToast('名前が未入力のセリフがあります');
     return;
   }
   const succeeded = await writeClipboard(output.text);
