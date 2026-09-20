@@ -24,9 +24,11 @@
     --narr: #8FB0D3;          /* 地の文の識別色 */
     --dial: #E3B75E;          /* セリフの識別色 */
     --prem: #B3A6CF;          /* 前提の識別色（地の文・セリフと区別できる淡い紫） */
+    --mind: #D48B8B;          /* 心情の識別色（地の文・セリフ・前提と区別できるくすみ紅） */
     --narr-tint: rgba(143, 176, 211, .14); /* 地の文 選択時の淡い面 */
     --dial-tint: rgba(227, 183, 94, .14);  /* セリフ 選択時の淡い面 */
     --prem-tint: rgba(179, 166, 207, .14); /* 前提 選択時の淡い面 */
+    --mind-tint: rgba(212, 139, 139, .14); /* 心情 選択時の淡い面 */
     /* 暗色背景では明朝体の細い横画がにじみやすいため、ゴシック体を採用 */
     --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", system-ui, sans-serif;
   }
@@ -64,17 +66,18 @@
   .row-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
 
   /* 種類切替：ラジオは視覚的に隠すがフォーカス可能なまま残す */
-  .toggle { display: flex; gap: 6px; border: 0; margin: 0; padding: 0; }
+  .toggle { display: flex; flex-wrap: wrap; gap: 6px; border: 0; margin: 0; padding: 0; }
   .toggle legend, .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   .toggle span {
-    display: inline-block; min-width: 4.4em; text-align: center; padding: 6px 10px;
+    display: inline-block; min-width: 4.2em; text-align: center; padding: 6px 10px;
     border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: .9rem;
   }
   /* 選択中は塗りつぶさず、枠線＋淡い面で示す（眩しさ対策） */
   .toggle input[value="narration"]:checked + span { border-color: var(--narr); color: var(--narr); background: var(--narr-tint); }
   .toggle input[value="dialogue"]:checked + span { border-color: var(--dial); color: var(--dial); background: var(--dial-tint); }
   .toggle input[value="premise"]:checked + span { border-color: var(--prem); color: var(--prem); background: var(--prem-tint); }
+  .toggle input[value="mind"]:checked + span { border-color: var(--mind); color: var(--mind); background: var(--mind-tint); }
   .toggle input:focus-visible + span, button:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
 
   .del { background: none; border: 0; color: var(--muted); font-size: 1.3rem; width: 40px; height: 36px; cursor: pointer; }
@@ -83,27 +86,42 @@
   .body { display: flex; align-items: flex-start; gap: 6px; }
   .text { position: relative; flex: 1; min-width: 0; }
 
-  /* 名前欄：セリフ行のみ表示 */
+  /* 名前欄：セリフ行・心情行のみ表示 */
   .speaker { display: none; }
-  .row[data-type="dialogue"] .speaker {
+  .row[data-type="dialogue"] .speaker,
+  .row[data-type="mind"] .speaker {
     display: block; flex: 0 0 5.5em; width: 5.5em; padding: 4px 2px;
     font-size: 1rem; line-height: 1.85; margin-top: 2px;  /* 文章1行目とベースラインを揃える */
-    color: var(--dial); border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
   }
+  .row[data-type="dialogue"] .speaker { color: var(--dial); }
+  .row[data-type="mind"] .speaker { color: var(--mind); }
   .row[data-type="dialogue"] .speaker:focus { border-bottom-color: var(--dial); }
+  .row[data-type="mind"] .speaker:focus { border-bottom-color: var(--mind); }
 
   /* 地の文：原稿の慣例に合わせ字下げ */
   .row[data-type="narration"] textarea { text-indent: 1em; }
   /* 前提：本文ではないため字下げせず、識別色で区別する */
   .row[data-type="premise"] textarea { color: var(--prem); }
-  /* セリフ：鉤括弧で囲み、一目で区別できるようにする */
-  .row[data-type="dialogue"] .text { padding: 0 1.2em; }
+  /* 心情：字下げなし、識別色 */
+  .row[data-type="mind"] textarea { color: var(--mind); }
+  /* セリフ・心情：鉤括弧で囲み、一目で区別できるようにする */
+  .row[data-type="dialogue"] .text,
+  .row[data-type="mind"] .text { padding: 0 1.2em; }
   .row[data-type="dialogue"] .text::before,
-  .row[data-type="dialogue"] .text::after {
-    position: absolute; color: var(--dial); font-size: 1.125rem; line-height: 1.85; pointer-events: none;
+  .row[data-type="dialogue"] .text::after,
+  .row[data-type="mind"] .text::before,
+  .row[data-type="mind"] .text::after {
+    position: absolute; font-size: 1.125rem; line-height: 1.85; pointer-events: none;
   }
-  .row[data-type="dialogue"] .text::before { content: "「"; left: 0; top: 4px; }
-  .row[data-type="dialogue"] .text::after { content: "」"; right: 0; bottom: 4px; }
+  .row[data-type="dialogue"] .text::before,
+  .row[data-type="dialogue"] .text::after { color: var(--dial); }
+  .row[data-type="mind"] .text::before,
+  .row[data-type="mind"] .text::after { color: var(--mind); }
+  .row[data-type="dialogue"] .text::before,
+  .row[data-type="mind"] .text::before { content: "「"; left: 0; top: 4px; }
+  .row[data-type="dialogue"] .text::after,
+  .row[data-type="mind"] .text::after { content: "」"; right: 0; bottom: 4px; }
 
   /* ===== 下部固定操作バー（片手・寝姿勢で親指が届く位置） ===== */
   .bar {
@@ -166,13 +184,16 @@ const DEFAULT_PREFIX =                     // 前置きの既定値（公開コ�
 const TYPE_LABELS = {                      // 種類ごとの表示・出力ラベル（キーの並びがボタンの並び順）
   premise: '前提',
   narration: '地の文',
+  mind: '心情',
   dialogue: 'セリフ',
 };
+const NAMED_TYPES = new Set(['dialogue', 'mind']); // 名前必須。画面上も名前欄を出す
 
 /**
  * 1行分の出力形式を定義する。形式を変えたい場合はここだけ修正すればよい。
  * 前提　：【前提】文章（複数行なら空行を除き、各行に【前提】を付ける）
  * 地の文：【地の文】文章
+ * 心情　：【心情】名前「文章」（名前は必須。空の場合はコピー前に止める）
  * セリフ：【セリフ】名前「文章」（名前は必須。空の場合はコピー前に止める）
  * @param {{type: string, name: string, text: string}} row - 前後空白除去済みの行データ
  * @returns {string}
@@ -187,10 +208,11 @@ function formatLine(row) {
       .map((lineText) => `【${TYPE_LABELS.premise}】${lineText}`)
       .join('\n');
   }
-  if (row.type !== 'dialogue') return `【${TYPE_LABELS.narration}】${row.text}`;
+  if (!NAMED_TYPES.has(row.type)) return `【${TYPE_LABELS.narration}】${row.text}`;
   // 利用者が自分で「」を打った場合に二重にならないよう、両端の鉤括弧を1つずつ除去
   const bareText = row.text.replace(/^「/, '').replace(/」$/, '');
-  return `【${TYPE_LABELS.dialogue}】${row.name}「${bareText}」`;
+  const label = TYPE_LABELS[row.type] || TYPE_LABELS.dialogue;
+  return `【${label}】${row.name}「${bareText}」`;
 }
 
 /* ================= 要素参照 ================= */
@@ -361,13 +383,13 @@ function updateStat() {
 /* ================= 出力 ================= */
 
 /**
- * 名前が未入力のセリフ行（文章は入力済み）のうち、最初の行の要素を返す。
+ * 名前が未入力の名前必須行（文章は入力済み）のうち、最初の行の要素を返す。
  * 文章が空の行は出力されないため対象外。
  * @returns {HTMLLIElement|null}
  */
-function findUnnamedDialogueRow() {
+function findUnnamedRequiredRow() {
   return [...listEl.children].find((itemEl) =>
-    itemEl.dataset.type === 'dialogue' &&
+    NAMED_TYPES.has(itemEl.dataset.type) &&
     itemEl.querySelector('textarea').value.trim() !== '' &&
     itemEl.querySelector('.speaker').value.trim() === ''
   ) || null;
@@ -484,11 +506,12 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
     return;
   }
   // 話者名は必須。未入力の行があればコピーせず、その名前欄へ移動する
-  const unnamedRowEl = findUnnamedDialogueRow();
+  const unnamedRowEl = findUnnamedRequiredRow();
   if (unnamedRowEl) {
     unnamedRowEl.scrollIntoView({ block: 'center' });
     unnamedRowEl.querySelector('.speaker').focus();
-    showToast('名前が未入力のセリフがあります');
+    const kind = unnamedRowEl.dataset.type === 'mind' ? '心情' : 'セリフ';
+    showToast(`名前が未入力の${kind}があります`);
     return;
   }
   const succeeded = await writeClipboard(output.text);
