@@ -60,6 +60,15 @@
   }
   textarea::placeholder, input::placeholder { color: var(--placeholder); }
 
+  /* ===== 場面の基本情報（視点・登場人物） =====
+     前置きと同じ枠線で囲み、行リストとは別枠であることを示す。
+     出力では前提として扱うため、ラベルは前提の識別色にする */
+  .scene { border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px; margin-bottom: 8px; }
+  .field { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+  .field + .field { border-top: 1px solid var(--line); }
+  .field-label { flex: 0 0 4.5em; color: var(--prem); font-size: .9rem; }
+  .field input { flex: 1; min-width: 0; font-size: 1rem; line-height: 1.85; padding: 4px 2px; }
+
   /* ===== 行リスト ===== */
   ol { list-style: none; margin: 0; padding: 0; }
   .row { border-bottom: 1px solid var(--line); padding: 10px 0 8px; }
@@ -82,7 +91,7 @@
 
   .del { background: none; border: 0; color: var(--muted); font-size: 1.3rem; width: 40px; height: 36px; cursor: pointer; }
 
-  /* ===== 本文エリア：[名前][「文章」] の横並び ===== */
+  /* ===== 本文エリア：[名前][文章] の横並び ===== */
   .body { display: flex; align-items: flex-start; gap: 6px; }
   .text { position: relative; flex: 1; min-width: 0; }
 
@@ -103,25 +112,16 @@
   .row[data-type="narration"] textarea { text-indent: 1em; }
   /* 前提：本文ではないため字下げせず、識別色で区別する */
   .row[data-type="premise"] textarea { color: var(--prem); }
-  /* 心情：字下げなし、識別色 */
+  /* 心情：感情の概要を書く欄。台詞ではないため鉤括弧は付けず、識別色のみで区別する */
   .row[data-type="mind"] textarea { color: var(--mind); }
-  /* セリフ・心情：鉤括弧で囲み、一目で区別できるようにする */
-  .row[data-type="dialogue"] .text,
-  .row[data-type="mind"] .text { padding: 0 1.2em; }
+  /* セリフ：鉤括弧で囲み、原文のまま使われる台詞であることを一目で区別できるようにする */
+  .row[data-type="dialogue"] .text { padding: 0 1.2em; }
   .row[data-type="dialogue"] .text::before,
-  .row[data-type="dialogue"] .text::after,
-  .row[data-type="mind"] .text::before,
-  .row[data-type="mind"] .text::after {
-    position: absolute; font-size: 1.125rem; line-height: 1.85; pointer-events: none;
+  .row[data-type="dialogue"] .text::after {
+    position: absolute; font-size: 1.125rem; line-height: 1.85; pointer-events: none; color: var(--dial);
   }
-  .row[data-type="dialogue"] .text::before,
-  .row[data-type="dialogue"] .text::after { color: var(--dial); }
-  .row[data-type="mind"] .text::before,
-  .row[data-type="mind"] .text::after { color: var(--mind); }
-  .row[data-type="dialogue"] .text::before,
-  .row[data-type="mind"] .text::before { content: "「"; left: 0; top: 4px; }
-  .row[data-type="dialogue"] .text::after,
-  .row[data-type="mind"] .text::after { content: "」"; right: 0; bottom: 4px; }
+  .row[data-type="dialogue"] .text::before { content: "「"; left: 0; top: 4px; }
+  .row[data-type="dialogue"] .text::after { content: "」"; right: 0; bottom: 4px; }
 
   /* ===== 下部固定操作バー（片手・寝姿勢で親指が届く位置） ===== */
   .bar {
@@ -159,8 +159,23 @@
     <textarea id="prefix" placeholder="指示文を入力"></textarea>
   </details>
 
+  <!-- 場面の基本情報：出力時に前提の先頭へ決まった形式で書き出す（表記揺れ防止） -->
+  <section class="scene" aria-label="場面の基本情報">
+    <label class="field">
+      <span class="field-label">視点</span>
+      <input type="text" id="viewpoint" placeholder="例：人物名（一人称）" maxlength="40" autocomplete="off">
+    </label>
+    <label class="field">
+      <span class="field-label">登場人物</span>
+      <input type="text" id="cast" placeholder="例：人物A、人物B" maxlength="100" autocomplete="off">
+    </label>
+  </section>
+
   <ol id="rows"></ol>
 </main>
+
+<!-- 名前欄の入力候補。登場人物欄と入力済みの名前から自動生成する -->
+<datalist id="name-list"></datalist>
 
 <div class="bar">
   <div class="bar-inner">
@@ -176,7 +191,7 @@
 
 /* ================= 設定 ================= */
 const STORAGE_KEY = 'scene-draft-tool-v1'; // 自動保存に使うキー（既存データを引き継ぐため変更しない）
-const STATE_VERSION = 2;                   // 保存データの形式バージョン（2：名前欄・前置き既定値に対応）
+const STATE_VERSION = 3;                   // 保存データの形式バージョン（3：視点・登場人物欄に対応）
 const INITIAL_ROWS = 5;                    // 初回表示時・消去後の行数
 const SAVE_DELAY_MS = 400;                 // 入力停止から保存までの待機時間
 const DEFAULT_PREFIX =                     // 前置きの既定値（公開コードのため汎用的な文にする）
@@ -188,13 +203,19 @@ const TYPE_LABELS = {                      // 種類ごとの表示・出力ラ�
   dialogue: 'セリフ',
 };
 const NAMED_TYPES = new Set(['dialogue', 'mind']); // 名前必須。画面上も名前欄を出す
+const SCENE_FIELD_LABELS = {               // 場面の基本情報を前提として出力するときの項目名
+  viewpoint: '視点',
+  cast: '登場人物',
+};
+// 登場人物欄の区切り文字（読点・カンマ）。空白や中黒は氏名の一部になりうるため区切りに含めない
+const NAME_SEPARATOR_PATTERN = /[、,，]+/;
 
 /**
  * 1行分の出力形式を定義する。形式を変えたい場合はここだけ修正すればよい。
  * 前提　：【前提】文章（複数行なら空行を除き、各行に【前提】を付ける）
  * 地の文：【地の文】文章
- * 心情　：【心情】名前「文章」（名前は必須。空の場合はコピー前に止める）
- * セリフ：【セリフ】名前「文章」（名前は必須。空の場合はコピー前に止める）
+ * 心情　：【心情】名前：文章（感情の概要。台詞ではないため鉤括弧を付けない。名前は必須）
+ * セリフ：【セリフ】名前「文章」（原文のまま使われる台詞。名前は必須）
  * @param {{type: string, name: string, text: string}} row - 前後空白除去済みの行データ
  * @returns {string}
  */
@@ -209,16 +230,30 @@ function formatLine(row) {
       .join('\n');
   }
   if (!NAMED_TYPES.has(row.type)) return `【${TYPE_LABELS.narration}】${row.text}`;
-  // 利用者が自分で「」を打った場合に二重にならないよう、両端の鉤括弧を1つずつ除去
+  // 利用者が自分で「」を打った場合に二重・混在にならないよう、両端の鉤括弧を1つずつ除去
   const bareText = row.text.replace(/^「/, '').replace(/」$/, '');
-  const label = TYPE_LABELS[row.type] || TYPE_LABELS.dialogue;
-  return `【${label}】${row.name}「${bareText}」`;
+  if (row.type === 'mind') return `【${TYPE_LABELS.mind}】${row.name}：${bareText}`;
+  return `【${TYPE_LABELS.dialogue}】${row.name}「${bareText}」`;
+}
+
+/**
+ * 場面の基本情報（視点・登場人物）を前提行として整形する。空の項目は出力しない。
+ * @param {{viewpoint: string, cast: string}} scene - 前後空白除去済みの値
+ * @returns {string[]}
+ */
+function formatSceneLines(scene) {
+  return Object.entries(SCENE_FIELD_LABELS)
+    .filter(([key]) => scene[key] !== '')
+    .map(([key, label]) => `【${TYPE_LABELS.premise}】${label}：${scene[key]}`);
 }
 
 /* ================= 要素参照 ================= */
 const listEl = document.getElementById('rows');
 const prefixEl = document.getElementById('prefix');
 const prefixBoxEl = document.getElementById('prefix-box');
+const viewpointEl = document.getElementById('viewpoint');
+const castEl = document.getElementById('cast');
+const nameListEl = document.getElementById('name-list');
 const statEl = document.getElementById('stat');
 const toastEl = document.getElementById('toast');
 
@@ -250,6 +285,25 @@ function showToast(message) {
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
 }
 
+/**
+ * 名前欄の入力候補を作り直す。
+ * 登場人物欄の名前を先に、行で使用済みの名前を後に並べ、重複と空文字は除く。
+ * 候補から選ばせることで「同一人物の表記揺れ」を防ぐのが目的。
+ */
+function refreshNameList() {
+  const castNames = castEl.value.split(NAME_SEPARATOR_PATTERN);
+  const rowNames = [...listEl.querySelectorAll('.speaker')].map((inputEl) => inputEl.value);
+  const uniqueNames = [...new Set(
+    [...castNames, ...rowNames].map((name) => name.trim()).filter((name) => name !== '')
+  )];
+  // 値はプロパティで設定（innerHTMLに埋め込むと入力文字列がHTMLとして解釈されるため）
+  nameListEl.replaceChildren(...uniqueNames.map((name) => {
+    const optionEl = document.createElement('option');
+    optionEl.value = name;
+    return optionEl;
+  }));
+}
+
 /* ================= 行の生成 ================= */
 
 /**
@@ -269,6 +323,7 @@ function createRow(data = {}) {
   itemEl.className = 'row';
   itemEl.dataset.type = type;
 
+  // 名前欄は datalist の候補を参照する。ブラウザ独自の入力履歴は候補と混ざるため無効化
   itemEl.innerHTML = `
     <div class="row-head">
       <fieldset class="toggle">
@@ -278,7 +333,7 @@ function createRow(data = {}) {
       <button type="button" class="del" aria-label="この行を削除">×</button>
     </div>
     <div class="body">
-      <input type="text" class="speaker" aria-label="話者名" placeholder="名前" maxlength="20">
+      <input type="text" class="speaker" aria-label="話者名" placeholder="名前" maxlength="20" list="name-list" autocomplete="off">
       <div class="text">
         <textarea rows="1" aria-label="文章" placeholder="文章を入力"></textarea>
       </div>
@@ -299,6 +354,7 @@ function renderRows(rowsData) {
   listEl.replaceChildren(...rowsData.map(createRow));
   // 描画確定後に高さ調整（直後だとscrollHeightが0になる場合がある）
   requestAnimationFrame(() => listEl.querySelectorAll('textarea').forEach(autoGrow));
+  refreshNameList();
   updateStat();
 }
 
@@ -309,12 +365,14 @@ const emptyRows = (count) => Array.from({ length: count }, () => ({ type: 'narra
 
 /**
  * 現在の入力内容をオブジェクトとして取得する。
- * @returns {{version: number, prefix: string, rows: Array<{type: string, name: string, text: string}>}}
+ * @returns {{version: number, prefix: string, viewpoint: string, cast: string, rows: Array<{type: string, name: string, text: string}>}}
  */
 function collectState() {
   return {
     version: STATE_VERSION,
     prefix: prefixEl.value,
+    viewpoint: viewpointEl.value,
+    cast: castEl.value,
     rows: [...listEl.children].map((itemEl) => ({
       type: itemEl.dataset.type,
       name: itemEl.querySelector('.speaker').value, // 地の文に切り替えても名前は保持（戻した時に復元される）
@@ -343,7 +401,7 @@ function scheduleSave() {
 
 /**
  * 保存済みデータを読み込む。無い・壊れている場合はnull。
- * @returns {{version?: number, prefix: string, rows: Array}|null}
+ * @returns {{version?: number, prefix: string, viewpoint?: string, cast?: string, rows: Array}|null}
  */
 function loadState() {
   try {
@@ -360,14 +418,16 @@ function loadState() {
 /**
  * 起動時に表示する前置きを決める。
  * ・保存データなし → 既定値
- * ・旧形式（バージョン無し）で前置きが空 → 既定値（旧版には既定値が無かったため）
- * ・現行形式 → 保存値をそのまま使う（利用者が意図的に空にした場合も尊重）
+ * ・初版（バージョン無し）で前置きが空 → 既定値（初版には既定値が無かったため）
+ * ・バージョン付き（2以降） → 保存値をそのまま使う（利用者が意図的に空にした場合も尊重）
+ *   ※バージョン番号の一致で判定すると、形式を上げるたびに空の前置きが既定値で上書きされるため、
+ *     「バージョンの有無」で判定する
  * @param {{version?: number, prefix?: string}|null} saved
  * @returns {string}
  */
 function resolvePrefix(saved) {
   if (!saved) return DEFAULT_PREFIX;
-  if (saved.version !== STATE_VERSION && !saved.prefix) return DEFAULT_PREFIX;
+  if (saved.version === undefined && !saved.prefix) return DEFAULT_PREFIX;
   return saved.prefix || '';
 }
 
@@ -397,8 +457,9 @@ function findUnnamedRequiredRow() {
 
 /**
  * コピー用テキストを組み立てる。文章が空の行は除外。
- * 前提の行は、画面上の位置に関係なく先頭へまとめる（それ以外の行の順序は保つ）。
- * @returns {{text: string, count: number}}
+ * 出力順：場面の基本情報（視点→登場人物）→ 前提の行 → それ以外の行（画面上の順序を保つ）
+ * 場面の基本情報だけでは出力しない（本文の概略が無いため）。
+ * @returns {{text: string, count: number}} count は本文の概略として出力した行数（0なら出力しない）
  */
 function buildOutput() {
   const state = collectState();
@@ -407,13 +468,14 @@ function buildOutput() {
     ...filledRows.filter((row) => row.type === 'premise'),
     ...filledRows.filter((row) => row.type !== 'premise'),
   ];
-  const lines = orderedRows
+  const rowLines = orderedRows
     .map((row) => formatLine({ type: row.type, name: row.name.trim(), text: row.text.trim() }));
+  const sceneLines = formatSceneLines({ viewpoint: state.viewpoint.trim(), cast: state.cast.trim() });
 
   const parts = [];
-  if (state.prefix.trim() !== '' && lines.length > 0) parts.push(state.prefix.trim(), ''); // 前置きと本文の間に空行
-  parts.push(...lines);
-  return { text: parts.join('\n'), count: lines.length };
+  if (state.prefix.trim() !== '' && rowLines.length > 0) parts.push(state.prefix.trim(), ''); // 前置きと本文の間に空行
+  if (rowLines.length > 0) parts.push(...sceneLines, ...rowLines);
+  return { text: parts.join('\n'), count: rowLines.length };
 }
 
 /**
@@ -454,6 +516,12 @@ listEl.addEventListener('input', (event) => {
 });
 
 listEl.addEventListener('change', (event) => {
+  // 名前欄の確定時（フォーカスが外れた時）に候補を更新する。
+  // 入力中に更新すると、打ちかけの文字列まで候補に入ってしまうため
+  if (event.target.classList.contains('speaker')) {
+    refreshNameList();
+    return;
+  }
   if (event.target.type !== 'radio') return;
   const itemEl = event.target.closest('.row');
   itemEl.dataset.type = event.target.value; // 見た目（字下げ／名前欄・鉤括弧）を切替
@@ -480,6 +548,7 @@ listEl.addEventListener('click', (event) => {
   } else {
     itemEl.remove();
   }
+  refreshNameList(); // 削除した行にしか無かった名前を候補から外す
   updateStat();
   saveNow();
 });
@@ -490,6 +559,13 @@ prefixEl.addEventListener('input', () => {
 });
 // 折りたたみを開いた時点で高さを合わせる（閉じている間は高さ0で計算できないため）
 prefixBoxEl.addEventListener('toggle', () => autoGrow(prefixEl));
+
+// 場面の基本情報：入力のたびに保存。登場人物は名前候補の元になるため候補も更新する
+viewpointEl.addEventListener('input', scheduleSave);
+castEl.addEventListener('input', () => {
+  refreshNameList();
+  scheduleSave();
+});
 
 document.getElementById('btn-add').addEventListener('click', () => {
   const itemEl = createRow();
@@ -510,7 +586,7 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
   if (unnamedRowEl) {
     unnamedRowEl.scrollIntoView({ block: 'center' });
     unnamedRowEl.querySelector('.speaker').focus();
-    const kind = unnamedRowEl.dataset.type === 'mind' ? '心情' : 'セリフ';
+    const kind = TYPE_LABELS[unnamedRowEl.dataset.type] || TYPE_LABELS.dialogue;
     showToast(`名前が未入力の${kind}があります`);
     return;
   }
@@ -519,7 +595,8 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-clear').addEventListener('click', () => {
-  if (!confirm('すべての行を消去しますか？（前置きは残ります）')) return;
+  // 視点・登場人物は同じ作品内で使い回すことが多いため、前置きと同様に残す
+  if (!confirm('すべての行を消去しますか？（前置き・視点・登場人物は残ります）')) return;
   renderRows(emptyRows(INITIAL_ROWS));
   saveNow();
   window.scrollTo({ top: 0 });
@@ -534,6 +611,9 @@ document.addEventListener('visibilitychange', () => {
 (function init() {
   const saved = loadState();
   prefixEl.value = resolvePrefix(saved);
+  // 旧形式（2以前）には視点・登場人物が無いため、空欄として扱う
+  viewpointEl.value = (saved && saved.viewpoint) || '';
+  castEl.value = (saved && saved.cast) || '';
   renderRows(saved && saved.rows.length > 0 ? saved.rows : emptyRows(INITIAL_ROWS));
   saveNow(); // 旧形式データを現行形式で保存し直す（既定値の再適用を防ぐ）
 })();
